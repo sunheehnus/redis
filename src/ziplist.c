@@ -1219,6 +1219,8 @@ int ziplistTest(int argc, char **argv) {
     zl = createIntList();
     ziplistRepr(zl);
 
+    zfree(zl);
+
     zl = createList();
     ziplistRepr(zl);
 
@@ -1233,6 +1235,8 @@ int ziplistTest(int argc, char **argv) {
 
     zl = pop(zl,ZIPLIST_TAIL);
     ziplistRepr(zl);
+
+    zfree(zl);
 
     printf("Get element at index 3:\n");
     {
@@ -1249,6 +1253,7 @@ int ziplistTest(int argc, char **argv) {
             printf("%lld\n", value);
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Get element at index 4 (out of range):\n");
@@ -1262,6 +1267,7 @@ int ziplistTest(int argc, char **argv) {
             return 1;
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Get element at index -1 (last element):\n");
@@ -1279,6 +1285,7 @@ int ziplistTest(int argc, char **argv) {
             printf("%lld\n", value);
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Get element at index -4 (first element):\n");
@@ -1296,6 +1303,7 @@ int ziplistTest(int argc, char **argv) {
             printf("%lld\n", value);
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Get element at index -5 (reverse out of range):\n");
@@ -1309,6 +1317,7 @@ int ziplistTest(int argc, char **argv) {
             return 1;
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate list from 0 to end:\n");
@@ -1326,6 +1335,7 @@ int ziplistTest(int argc, char **argv) {
             printf("\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate list from 1 to end:\n");
@@ -1343,6 +1353,7 @@ int ziplistTest(int argc, char **argv) {
             printf("\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate list from 2 to end:\n");
@@ -1360,6 +1371,7 @@ int ziplistTest(int argc, char **argv) {
             printf("\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate starting out of range:\n");
@@ -1372,6 +1384,7 @@ int ziplistTest(int argc, char **argv) {
             printf("ERROR\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate from back to front:\n");
@@ -1389,6 +1402,7 @@ int ziplistTest(int argc, char **argv) {
             printf("\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Iterate from back to front, deleting all items:\n");
@@ -1407,6 +1421,7 @@ int ziplistTest(int argc, char **argv) {
             printf("\n");
         }
         printf("\n");
+        zfree(zl);
     }
 
     printf("Delete inclusive range 0,0:\n");
@@ -1414,6 +1429,7 @@ int ziplistTest(int argc, char **argv) {
         zl = createList();
         zl = ziplistDeleteRange(zl, 0, 1);
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Delete inclusive range 0,1:\n");
@@ -1421,6 +1437,7 @@ int ziplistTest(int argc, char **argv) {
         zl = createList();
         zl = ziplistDeleteRange(zl, 0, 2);
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Delete inclusive range 1,2:\n");
@@ -1428,6 +1445,7 @@ int ziplistTest(int argc, char **argv) {
         zl = createList();
         zl = ziplistDeleteRange(zl, 1, 2);
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Delete with start index out of range:\n");
@@ -1435,6 +1453,7 @@ int ziplistTest(int argc, char **argv) {
         zl = createList();
         zl = ziplistDeleteRange(zl, 5, 1);
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Delete with num overflow:\n");
@@ -1442,6 +1461,7 @@ int ziplistTest(int argc, char **argv) {
         zl = createList();
         zl = ziplistDeleteRange(zl, 1, 5);
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Delete foo while iterating:\n");
@@ -1466,6 +1486,7 @@ int ziplistTest(int argc, char **argv) {
         }
         printf("\n");
         ziplistRepr(zl);
+        zfree(zl);
     }
 
     printf("Regression test for >255 byte strings:\n");
@@ -1485,6 +1506,7 @@ int ziplistTest(int argc, char **argv) {
         assert(ziplistGet(p,&entry,&elen,&value));
         assert(strncmp(v2,(char*)entry,elen) == 0);
         printf("SUCCESS\n\n");
+        zfree(zl);
     }
 
     printf("Regression test deleting next to last entries:\n");
@@ -1523,6 +1545,7 @@ int ziplistTest(int argc, char **argv) {
         assert(e[1].prevrawlensize == 5);
 
         printf("SUCCESS\n\n");
+        zfree(zl);
     }
 
     printf("Create long list and check indices:\n");
@@ -1544,6 +1567,7 @@ int ziplistTest(int argc, char **argv) {
             assert(999-i == value);
         }
         printf("SUCCESS\n\n");
+        zfree(zl);
     }
 
     printf("Compare strings with ziplist entries:\n");
@@ -1569,6 +1593,7 @@ int ziplistTest(int argc, char **argv) {
             return 1;
         }
         printf("SUCCESS\n\n");
+        zfree(zl);
     }
 
     printf("Merge test:\n");
@@ -1643,6 +1668,7 @@ int ziplistTest(int argc, char **argv) {
             return 1;
         }
         printf("SUCCESS\n\n");
+        zfree(zl);
     }
 
     printf("Stress with random payloads of different encoding:\n");
