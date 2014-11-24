@@ -272,9 +272,7 @@ void quicklistDelEntry(quicklistIter *iter, quicklistEntry *entry) {
             iter->current = next;
             iter->offset = 0;
         } else {
-            /* Current node remains.  Replace iterator zi with next zi. */
-            iter->zi = entry->zi;
-            iter->offset++;
+            /* Current node remains. */
         }
     } else if (iter->direction == AL_START_TAIL) {
         if (deleted_node) {
