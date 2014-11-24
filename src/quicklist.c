@@ -889,7 +889,7 @@ void quicklistRotate(quicklist *quicklist, const size_t fill) {
     if (!value) {
         /* Write the longval as a string so we can re-add it */
         int wrote = ll2string(longstr, sizeof(longstr), longval);
-        value = (unsigned char *)longval;
+        value = (unsigned char *)longstr;
         sz = wrote;
     }
 
@@ -897,6 +897,7 @@ void quicklistRotate(quicklist *quicklist, const size_t fill) {
     quicklistPushHead(quicklist, fill, value, sz);
 
     /* Remove tail entry. */
+    p = ziplistIndex(tail->zl, -1);
     quicklistDelIndex(quicklist, tail, &p);
 }
 
