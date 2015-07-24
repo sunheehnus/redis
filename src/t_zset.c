@@ -2394,6 +2394,152 @@ void zrevrangebyscoreCommand(redisClient *c) {
     genericZrangebyscoreCommand(c,1);
 }
 
+int hashTypeGetFromZiplist(robj *o, robj *field, unsigned char **vstr,
+                           unsigned int *vlen, long long *vll);
+int hashTypeGetFromHashTable(robj *o, robj *field, robj **value);
+void zmapcountbydictstoreCommand(redisClient *c) {
+    robj *dstkey = c->argv[1];
+    robj *kobj, *mobj;
+    int touched = 0;
+
+    if (c->argc != 4) {
+        addReply(c,shared.syntaxerr);
+        return;
+    }
+    kobj = lookupKeyReadOrReply(c,c->argv[2],shared.czero);
+    if ((kobj = lookupKeyReadOrReply(c,c->argv[2],shared.czero)) == NULL ||
+            (kobj->type != REDIS_ZSET && kobj->type != REDIS_SET)) {
+            addReply(c,shared.wrongtypeerr);
+            return;
+    }
+    if ((mobj = lookupKeyReadOrReply(c,c->argv[3],shared.czero)) == NULL ||
+        checkType(c,mobj,REDIS_HASH)) return;
+    if (dbDelete(c->db,dstkey)) {
+        signalModifiedKey(c->db,dstkey);
+        touched = 1;
+        server.dirty++;
+    }
+    robj *dstobj = createZsetObject();
+
+    if (kobj->type == REDIS_SET) {
+        setTypeIterator *si = setTypeInitIterator(kobj);
+        robj *tmp;
+        while((tmp = setTypeNextObject(si)) != NULL) {
+            robj *val = NULL;
+            if (mobj->encoding == REDIS_ENCODING_ZIPLIST) {
+                unsigned char *vstr = NULL;
+                unsigned int vlen = UINT_MAX;
+                long long vll = LLONG_MAX;
+
+                int ret = hashTypeGetFromZiplist(mobj, tmp, &vstr, &vlen, &vll);
+                if (ret < 0) {
+                    continue;
+                } else {
+                    if (vstr) {
+                        val = createObject(REDIS_STRING, sdsnewlen(vstr, vlen));
+                    } else {
+                        char ll2str[64];
+                        ll2string(ll2str,63,vll);
+                        val = createObject(REDIS_STRING, ll2str);
+                    }
+                }
+
+            } else if (mobj->encoding == REDIS_ENCODING_HT) {
+                int ret = hashTypeGetFromHashTable(mobj, tmp, &val);
+                if (ret < 0)
+                    continue;
+                incrRefCount(val);
+            }
+            zset *zs = (zset *)dstobj->ptr;
+            zskiplistNode *znode;
+            dictEntry *de;
+            de = dictFind(zs->dict,val);
+            if (de != NULL) {
+                robj *curobj = dictGetKey(de);
+                double curscore = *(double*)dictGetVal(de);
+                redisAssertWithInfo(c,curobj,zslDelete(zs->zsl,curscore,curobj));
+                znode = zslInsert(zs->zsl,curscore+1,curobj);
+                incrRefCount(curobj); /* Re-inserted in skiplist. */
+                dictGetVal(de) = &znode->score; /* Update score ptr. */
+            }
+            else {
+                znode = zslInsert(zs->zsl,1,val);
+                incrRefCount(val); /* added to skiplist. */
+                dictAdd(zs->dict,val,&znode->score);
+                incrRefCount(val); /* added to dictionary */
+            }
+            decrRefCount(val);
+        }
+        setTypeReleaseIterator(si);
+    }
+    else {
+        zsetopsrc src;
+        zsetopval zval;
+        src.subject = kobj;
+        src.type = kobj->type;
+        src.encoding = kobj->encoding;
+        zuiInitIterator(&src);
+        while (zuiNext(&src,&zval)) {
+            robj *tmp = zuiObjectFromValue(&zval);
+            robj *val = NULL;
+            if (mobj->encoding == REDIS_ENCODING_ZIPLIST) {
+                unsigned char *vstr = NULL;
+                unsigned int vlen = UINT_MAX;
+                long long vll = LLONG_MAX;
+
+                int ret = hashTypeGetFromZiplist(mobj, tmp, &vstr, &vlen, &vll);
+                if (ret < 0) {
+                    continue;
+                } else {
+                    if (vstr) {
+                        val = createObject(REDIS_STRING, sdsnewlen(vstr, vlen));
+                    } else {
+                        char ll2str[64];
+                        ll2string(ll2str,63,vll);
+                        val = createObject(REDIS_STRING, ll2str);
+                    }
+                }
+
+            } else if (mobj->encoding == REDIS_ENCODING_HT) {
+                int ret = hashTypeGetFromHashTable(mobj, tmp, &val);
+                if (ret < 0)
+                    continue;
+                incrRefCount(val);
+            }
+            zset *zs = (zset *)dstobj->ptr;
+            zskiplistNode *znode;
+            dictEntry *de;
+            de = dictFind(zs->dict,val);
+            if (de != NULL) {
+                robj *curobj = dictGetKey(de);
+                double curscore = *(double*)dictGetVal(de);
+                redisAssertWithInfo(c,curobj,zslDelete(zs->zsl,curscore,curobj));
+                znode = zslInsert(zs->zsl,curscore+1,curobj);
+                incrRefCount(curobj); /* Re-inserted in skiplist. */
+                dictGetVal(de) = &znode->score; /* Update score ptr. */
+            }
+            else {
+                znode = zslInsert(zs->zsl,1,val);
+                incrRefCount(val); /* added to skiplist. */
+                dictAdd(zs->dict,val,&znode->score);
+                incrRefCount(val); /* added to dictionary */
+            }
+            decrRefCount(val);
+        }
+        zuiClearIterator(&src);
+    }
+    if (!touched)
+        signalModifiedKey(c->db,dstkey);
+    else
+        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",dstkey,c->db->id);
+    notifyKeyspaceEvent(REDIS_NOTIFY_ZSET,
+        "zmapcountbydictstore",
+        dstkey,c->db->id);
+    server.dirty++;
+    dbAdd(c->db,dstkey,dstobj);
+    addReplyLongLong(c,dictSize(((zset *)dstobj->ptr)->dict));
+}
+
 /* This command implements ZRANGEBYSCORESTORE, ZREVRANGEBYSCORESTORE. */
 void genericZrangebyscoreStoreCommand(redisClient *c, int reverse) {
     zrangespec range;

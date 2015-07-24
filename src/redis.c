@@ -183,6 +183,7 @@ struct redisCommand redisCommandTable[] = {
     {"zrange",zrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
     {"zrangebyscore",zrangebyscoreCommand,-4,"r",0,NULL,1,1,1,0,0},
     {"zrevrangebyscore",zrevrangebyscoreCommand,-4,"r",0,NULL,1,1,1,0,0},
+    {"zmapcountbydictstore",zmapcountbydictstoreCommand,-4,"wm",0,NULL,1,1,1,0,0},
     {"zrangebyscorestore",zrangebyscorestoreCommand,-5,"wm",0,NULL,1,1,1,0,0},
     {"zrevrangebyscorestore",zrevrangebyscorestoreCommand,-5,"wm",0,NULL,1,1,1,0,0},
     {"zrangebylex",zrangebylexCommand,-4,"r",0,NULL,1,1,1,0,0},
