@@ -2469,6 +2469,7 @@ void zmapcountbydictstoreCommand(redisClient *c) {
                 incrRefCount(val); /* added to dictionary */
             }
             decrRefCount(val);
+            decrRefCount(tmp);
         }
         setTypeReleaseIterator(si);
     }
@@ -2534,6 +2535,116 @@ void zmapcountbydictstoreCommand(redisClient *c) {
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",dstkey,c->db->id);
     notifyKeyspaceEvent(REDIS_NOTIFY_ZSET,
         "zmapcountbydictstore",
+        dstkey,c->db->id);
+    server.dirty++;
+    dbAdd(c->db,dstkey,dstobj);
+    addReplyLongLong(c,dictSize(((zset *)dstobj->ptr)->dict));
+}
+
+void zmapcountstoreCommand(redisClient *c) {
+    robj *dstkey = c->argv[1];
+    robj *kobj, *mobj;
+    int touched = 0;
+
+    if (c->argc != 3) {
+        addReply(c,shared.syntaxerr);
+        return;
+    }
+    kobj = lookupKeyReadOrReply(c,c->argv[2],shared.czero);
+    if ((kobj = lookupKeyReadOrReply(c,c->argv[2],shared.czero)) == NULL ||
+            (kobj->type != REDIS_ZSET && kobj->type != REDIS_SET)) {
+            addReply(c,shared.wrongtypeerr);
+            return;
+    }
+    if (dbDelete(c->db,dstkey)) {
+        signalModifiedKey(c->db,dstkey);
+        touched = 1;
+        server.dirty++;
+    }
+    robj *dstobj = createZsetObject();
+
+    if (kobj->type == REDIS_SET) {
+        setTypeIterator *si = setTypeInitIterator(kobj);
+        robj *tmp;
+        while((tmp = setTypeNextObject(si)) != NULL) {
+            mobj = lookupKeyRead(c->db,tmp);
+            if (mobj == NULL || mobj->type != REDIS_SET) {
+                decrRefCount(tmp);
+                continue;
+            }
+            setTypeIterator *si_m = setTypeInitIterator(mobj);
+            robj *val;
+            while((val = setTypeNextObject(si_m)) != NULL) {
+                zset *zs = (zset *)dstobj->ptr;
+                zskiplistNode *znode;
+                dictEntry *de;
+                de = dictFind(zs->dict,val);
+                if (de != NULL) {
+                    robj *curobj = dictGetKey(de);
+                    double curscore = *(double*)dictGetVal(de);
+                    redisAssertWithInfo(c,curobj,zslDelete(zs->zsl,curscore,curobj));
+                    znode = zslInsert(zs->zsl,curscore+1,curobj);
+                    incrRefCount(curobj); /* Re-inserted in skiplist. */
+                    dictGetVal(de) = &znode->score; /* Update score ptr. */
+                }
+                else {
+                    znode = zslInsert(zs->zsl,1,val);
+                    incrRefCount(val); /* added to skiplist. */
+                    dictAdd(zs->dict,val,&znode->score);
+                    incrRefCount(val); /* added to dictionary */
+                }
+                decrRefCount(val);
+            }
+            setTypeReleaseIterator(si_m);
+            decrRefCount(tmp);
+        }
+        setTypeReleaseIterator(si);
+    }
+    else {
+        zsetopsrc src;
+        zsetopval zval;
+        src.subject = kobj;
+        src.type = kobj->type;
+        src.encoding = kobj->encoding;
+        zuiInitIterator(&src);
+        while (zuiNext(&src,&zval)) {
+            robj *tmp = zuiObjectFromValue(&zval);
+            mobj = lookupKeyRead(c->db,tmp);
+            if (mobj == NULL || mobj->type != REDIS_SET)
+                continue;
+            setTypeIterator *si_m = setTypeInitIterator(mobj);
+            robj *val_s;
+            while((val_s = setTypeNextObject(si_m)) != NULL) {
+                zset *zs = (zset *)dstobj->ptr;
+                zskiplistNode *znode;
+                dictEntry *de;
+                de = dictFind(zs->dict,val_s);
+                if (de != NULL) {
+                    robj *curobj = dictGetKey(de);
+                    double curscore = *(double*)dictGetVal(de);
+                    redisAssertWithInfo(c,curobj,zslDelete(zs->zsl,curscore,curobj));
+                    znode = zslInsert(zs->zsl,curscore+1,curobj);
+                    incrRefCount(curobj); /* Re-inserted in skiplist. */
+                    dictGetVal(de) = &znode->score; /* Update score ptr. */
+                }
+                else {
+                    znode = zslInsert(zs->zsl,1,val_s);
+                    incrRefCount(val_s); /* added to skiplist. */
+                    dictAdd(zs->dict,val_s,&znode->score);
+                    incrRefCount(val_s); /* added to dictionary */
+                }
+                decrRefCount(val_s);
+            }
+            setTypeReleaseIterator(si_m);
+        }
+        zuiClearIterator(&src);
+    }
+    if (!touched)
+        signalModifiedKey(c->db,dstkey);
+    else
+        notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",dstkey,c->db->id);
+    notifyKeyspaceEvent(REDIS_NOTIFY_ZSET,
+        "zmapcountstore",
         dstkey,c->db->id);
     server.dirty++;
     dbAdd(c->db,dstkey,dstobj);
